@@ -62,18 +62,20 @@ surr_rsq_ci <-
     for (j in 2:B) {
       BS_data <- data[sample(1:n, n, replace = T), ]
       try(
-        resultTable[j] <- surr_rsq(reduced_model, full_model,data)[[1]]
+        resultTable[j] <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
       )
       while( is.na(resultTable[j])) {
         BS_data <- data[sample(1:n, n, replace = T), ]
         try(
-          resultTable[j] <- surr_rsq(reduced_model, full_model, data)[[1]]
+          resultTable[j] <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
         )
       }
 
       # ProgressBar
       pb $tick(tokens = list(letter = progress_repNo[j]))
     }
+    # Print to verify bootstrap results (for confirmation)
+    # print(resultTable)
 
     CI_lower <- quantile(x = resultTable[-1], probs = c(alpha/2))
     CI_lower <- round(CI_lower, 3)

@@ -65,6 +65,8 @@ surr_rsq <-
         # set.seed(1521)
         res_s_temp <- rep(NA, times = avg.num)
         for (i in 1:avg.num) {
+          full_model[["call"]][["data"]] <- data
+          full_model <- eval(full_model[["call"]])
           data$s_full <- surrogate(full_model)
           #import PAsso surrogate
 
