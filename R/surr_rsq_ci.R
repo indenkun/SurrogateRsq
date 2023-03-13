@@ -5,6 +5,9 @@
 #' It contains the following components: \code{surr_rsq}, \code{reduced_model}, \code{full_model}, and \code{data}.
 #' @param alpha The significance level alpha. The confidence level is 1-alpha.
 #' @param B The number of bootstrap replications.
+#' @param multiprocess a logical. If TRUE, the function of future is used to perform multiprocessing in specified by the argument of strategy.
+#' Multiprocessing can take extra time if the number of times to bootstrap is small because of the presence of processes such as starting up multiple stances.
+#' @param strategy The evaluation function (or name of it) to use for resolving a future. Please specify what can be specified in future's \code{plan}.
 #' @param ... Additional optional arguments.
 #'
 #' @return An object of class \code{"surr_rsq_ci"} is a list containing the following components:
@@ -20,6 +23,9 @@
 #' @importFrom progress progress_bar
 #' @importFrom stats update lm nobs quantile
 #' @importFrom scales percent
+#' @importFrom future plan
+#' @importFrom furrr future_map_dbl furrr_options
+#' @importFrom progressr with_progress progressor handler_progress
 #'
 #' @examples
 #' data("RedWine")
@@ -43,17 +49,11 @@ surr_rsq_ci <-
   function(surr_rsq,
            alpha = 0.05,
            B     = 1000,
+           multiprocess = FALSE,
+           strategy = "multisession",
            ...){
     # Save B+1 surrogate rsq, the first one is calculated from full data.
     B <- B + 1
-
-    # Add progress bar --------------------------------------------------------
-    pb <- progress_bar$new(
-      format = "Replication = :letter [:bar] :percent :elapsed | eta: :eta",
-      total = B,    # 300
-      width = 80)
-    progress_repNo <- c(1:B)  # token reported in progress bar
-
 
     # Estract components from surr_rsq object
     res_s <- surr_rsq[[1]]
@@ -67,20 +67,49 @@ surr_rsq_ci <-
     resultTable <- rep(NA, B)
     resultTable[1] <- res_s[[1]]
 
-    for (j in 2:B) {
-      BS_data <- data[sample(1:n, n, replace = T), ]
-      try(
-        resultTable[j] <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
-      )
-      while( is.na(resultTable[j])) {
+    if(!multiprocess){
+      # Add progress bar --------------------------------------------------------
+      pb <- progress_bar$new(
+        format = "Replication = :letter [:bar] :percent :elapsed | eta: :eta",
+        total = B,    # 300
+        width = 80)
+      progress_repNo <- c(1:B)  # token reported in progress bar
+      for (j in 2:B) {
         BS_data <- data[sample(1:n, n, replace = T), ]
         try(
           resultTable[j] <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
         )
+        while( is.na(resultTable[j])) {
+          BS_data <- data[sample(1:n, n, replace = T), ]
+          try(
+            resultTable[j] <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
+          )
+        }
+        # ProgressBar
+        pb $tick(tokens = list(letter = progress_repNo[j]))
       }
-
-      # ProgressBar
-      pb $tick(tokens = list(letter = progress_repNo[j]))
+    }
+    else{
+      # Processing when multiprocessing is enabled.
+      oplan <- plan(strategy = strategy)
+      on.exit(plan(oplan), add = TRUE)
+      resultTable[-1] <- with_progress({
+        p <- progressor(length(2:B))
+        future_map_dbl(.x = 2:B, .f = function(.x){
+          p()
+          BS_data <- data[sample(1:n, n, replace = T), ]
+          try(
+            resultTable_temp <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
+          )
+          while (is.na(resultTable_temp)) {
+            BS_data <- data[sample(1:n, n, replace = T), ]
+            try(
+              resultTable_temp <- surr_rsq(reduced_model, full_model, BS_data)[[1]]
+            )
+          }
+          resultTable_temp
+        }, .options = furrr_options(globals = as.list(.GlobalEnv), packages = "SurrogateRsq", conditions = structure("condition", exclude = "message"), seed = TRUE))
+      }, handlers = handler_progress(format = ":spin [:bar] :current/:total :elapsed | :percent ETA: :eta", width = 80, clear = FALSE))
     }
     # Print to verify bootstrap results (for confirmation)
     # print(resultTable)
