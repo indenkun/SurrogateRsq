@@ -7,7 +7,15 @@
 #' @param B The number of bootstrap replications.
 #' @param ... Additional optional arguments.
 #'
-#' @return An list that contains the CI_lower, CI_upper.
+#' @return An object of class \code{"surr_rsq_ci"} is a list containing the following components:
+#' \item{\code{surr_rsq}}{the surrogate R-square value;}
+#' \item{\code{surr_rsq_ci}}{An list that contains the CI_lower, CI_upper.}
+#' \item{\code{surr_rsq_BS}}{the surrogate R-square value from bootstrap.}
+#' \item{\code{reduced_model}}{the reduced model under investigation. It should be a subset
+#' of the full model;}
+#' \item{\code{full_model}}{the full model used for generating the surrogate response. It should
+#' have passed initial variable screening and model diagnostics (see Paper for reference);}
+#' \item{\code{data}}{the dataset contains the response variable and all the predictors.}
 #'
 #' @importFrom progress progress_bar
 #' @importFrom stats update lm nobs quantile
@@ -83,10 +91,44 @@ surr_rsq_ci <-
     CI_upper <- quantile(x = resultTable[-1], probs = c(1 - alpha/2))
     CI_upper <- round(CI_upper, 3)
 
-    return_list <- data.frame(Lower = c(percent(alpha/2, 0.01), CI_lower),
-                              Upper = c(percent(1 - alpha/2, 0.01), CI_upper),
-                              row.names = c("Percentile", "Confidence Interval"))
+    rsq_ci <- data.frame(Lower = c(percent(alpha/2, 0.01), CI_lower),
+                         Upper = c(percent(1 - alpha/2, 0.01), CI_upper),
+                         row.names = c("Percentile", "Confidence Interval"))
 
+    return_list <- list("surr_rsq" = res_s,
+                        "surr_rsq_ci" = rsq_ci,
+                        "surr_rsq_BS" = resultTable[-1],
+                        "reduced_model" = reduced_model,
+                        "full_model" = full_model,
+                        "data" = data)
+
+    # Add class to the result_table
+    class(return_list) <- "surr_rsq_ci"
 
     return(return_list)
   }
+
+
+#' @title Print the interval estimate of the surrogate R-squared
+#' @param x A surr_rsq_ci object for printing out results.
+#' @param ... Additional optional arguments.
+#' @param digits A default number to specify decimal digit values.
+#'
+#' @name print
+#' @method print surr_rsq_ci
+#'
+#' @return Print the interval estimate of the surrogate R-squared from a surr_rsq_ci object
+#'
+#' @importFrom stats formula
+#'
+#' @export
+#' @keywords internal
+print.surr_rsq_ci <- function(x, digits = max(2, getOption("digits")-2), ...) {
+  cat("------------------------------------------------------------------------ \n")
+  cat("The surrogate R-squared of the model \n------------------------------------------------------------------------ \n",
+      paste(format(formula(x$reduced_model$terms)), "\n"),
+      "------------------------------------------------------------------------ \n",
+      "the interval estimate of the surrogate R-squared is: \n", sep = "")
+
+  print.data.frame(x$surr_rsq_ci, digits = digits)
+}

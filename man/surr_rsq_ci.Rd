@@ -17,7 +17,15 @@ It contains the following components: \code{surr_rsq}, \code{reduced_model}, \co
 \item{...}{Additional optional arguments.}
 }
 \value{
-An list that contains the CI_lower, CI_upper.
+An object of class \code{"surr_rsq_ci"} is a list containing the following components:
+\item{\code{surr_rsq}}{the surrogate R-square value;}
+\item{\code{surr_rsq_ci}}{An list that contains the CI_lower, CI_upper.}
+\item{\code{surr_rsq_BS}}{the surrogate R-square value from bootstrap.}
+\item{\code{reduced_model}}{the reduced model under investigation. It should be a subset
+of the full model;}
+\item{\code{full_model}}{the full model used for generating the surrogate response. It should
+have passed initial variable screening and model diagnostics (see Paper for reference);}
+\item{\code{data}}{the dataset contains the response variable and all the predictors.}
 }
 \description{
 This function generates the interval measure of surrogate R-squared by bootstrap.
